@@ -17,8 +17,8 @@ struct Entity
 
 int main(void)
 {
-  // Create arena with 1 kilobyte of memorY
-  M_Arena arena = m_arena_create(1024); 
+  // Create arena with 1 kilobyte of memory
+  M_Arena arena = m_arena_create(1024);
 
   Entity *player = {0};
   Entity *enemy1 = {0};
@@ -29,6 +29,7 @@ int main(void)
   enemy1 = m_arena_alloc(&arena, sizeof (Entity));
   enemy2 = m_arena_alloc(&arena, sizeof (Entity));
 
+  // Use the data
   player->id = 1;
   enemy1->id = 2;
   enemy2->id = 3;
