@@ -4,9 +4,7 @@
 #include "common.h"
 #include "arena.h"
 
-typedef M_Arena Arena;
-
-Arena m_arena_create(u64 size)
+Arena arena_create(u64 size)
 {
   Arena arena;
   arena.memory = malloc(size);
@@ -16,7 +14,7 @@ Arena m_arena_create(u64 size)
   return arena;
 }
 
-void m_arena_destroy(Arena *arena)
+void arena_destroy(Arena *arena)
 {
   free(arena->memory);
   arena->memory = NULL;
@@ -24,7 +22,7 @@ void m_arena_destroy(Arena *arena)
   arena->used = 0;
 }
 
-void *m_arena_alloc(Arena *arena, u64 size)
+void *arena_alloc(Arena *arena, u64 size)
 {
   assert(arena->size >= arena->used + size);
 
@@ -34,14 +32,14 @@ void *m_arena_alloc(Arena *arena, u64 size)
   return allocated;
 }
 
-void m_arena_free(Arena *arena, u64 size)
+void arena_free(Arena *arena, u64 size)
 {
   assert(arena->used - size >= 0);
 
   arena->used -= size;
 }
 
-void m_arena_clear(M_Arena *arena)
+void arena_clear(Arena *arena)
 {
   arena->used = 0;
 }
