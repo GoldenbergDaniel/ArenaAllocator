@@ -7,7 +7,7 @@ struct M_Arena
 {
   i8 *memory;
   u64 size;
-  u64 offset;
+  u64 used;
 };
 
 // Creates a new Arena with `size` bytes of memory
