@@ -10,7 +10,7 @@ struct M_Arena
   u64 offset;
 };
 
-// Creates a new Arena with `size+1` bytes of memory
+// Creates a new Arena with `size` bytes of memory
 M_Arena m_arena_create(u64 size);
 // Frees all memory in the arena
 void m_arena_destroy(M_Arena *arena);
