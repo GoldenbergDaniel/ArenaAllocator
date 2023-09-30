@@ -10,8 +10,8 @@ Arena m_arena_create(u64 size)
 {
   Arena arena;
   arena.memory = malloc(size);
-  arena.size = size+1;
-  arena.offset = 1;
+  arena.size = size;
+  arena.offset = 0;
 
   return arena;
 }
