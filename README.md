@@ -18,16 +18,16 @@ struct Entity
 int main(void)
 {
   // Create arena with 1 kilobyte of memory
-  M_Arena arena = m_arena_create(1024);
+  Arena arena = arena_create(1024);
 
   Entity *player = {0};
   Entity *enemy1 = {0};
   Entity *enemy2 = {0};
 
   // Push appropriate number of bytes for each entity struct onto the arena's stack
-  player = m_arena_alloc(&arena, sizeof (Entity)); 
-  enemy1 = m_arena_alloc(&arena, sizeof (Entity));
-  enemy2 = m_arena_alloc(&arena, sizeof (Entity));
+  player = arena_alloc(&arena, sizeof (Entity)); 
+  enemy1 = arena_alloc(&arena, sizeof (Entity));
+  enemy2 = arena_alloc(&arena, sizeof (Entity));
 
   // Use the data
   player->id = 1;
@@ -36,7 +36,7 @@ int main(void)
   printf("%i %i %i\n", player->id, enemy1->id, enemy2->id);
 
   // Free entire memory block
-  m_arena_destroy(&arena);
+  arena_destroy(&arena);
   
   return 0;
 }
