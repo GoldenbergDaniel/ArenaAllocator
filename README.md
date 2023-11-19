@@ -10,33 +10,29 @@ For more info on arenas and their benefits, see www.rfleury.com/p/untangling-lif
 typedef struct Entity Entity;
 struct Entity
 {
-  i32 id;
-  f32 x;
-  f32 y;
+  int id;
+  float x;
+  float y;
 };
 
 int main(void)
 {
   // Create arena with 1 kilobyte of memory
-  Arena arena = arena_create(1024);
+  Arena arena = create_arena(KiB(1));
 
   Entity *player = {0};
   Entity *enemy1 = {0};
   Entity *enemy2 = {0};
 
-  // Push appropriate number of bytes for each entity struct onto the arena's stack
+  // Allocate memory
   player = arena_alloc(&arena, sizeof (Entity)); 
   enemy1 = arena_alloc(&arena, sizeof (Entity));
   enemy2 = arena_alloc(&arena, sizeof (Entity));
 
-  // Use the data
-  player->id = 1;
-  enemy1->id = 2;
-  enemy2->id = 3;
-  printf("%i %i %i\n", player->id, enemy1->id, enemy2->id);
+  // Use the data...
 
   // Free entire memory block
-  arena_destroy(&arena);
+  clear_arena(&arena);
   
   return 0;
 }
