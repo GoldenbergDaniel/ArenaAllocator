@@ -1,11 +1,50 @@
+/*
+MIT License
+
+Copyright (c) 2023 Daniel Goldenberg
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+*/
+
+#pragma once
+
 #ifndef ARENA_LIB_H
 #define ARENA_LIB_H
 
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdint.h>
-#include <stdbool.h>
 #include <assert.h>
+
+#ifndef TRUE
+#define TRUE 1
+#endif
+
+#ifndef FALSE
+#define FALSE 0
+#endif
+
+#ifndef NULL
+#define NULL ((void *) 0)
+#endif
+
+typedef uint8_t aa_bool;
 
 typedef struct Arena Arena;
 
@@ -65,13 +104,13 @@ Arena get_scratch_arena(Arena *conflict)
 {
   static __thread Arena scratch_1;
   static __thread Arena scratch_2;
-  static __thread bool init = true;
+  static __thread aa_bool init = TRUE;
 
   if (init)
   {
     scratch_1 = create_arena(SCRATCH_SIZE);
     scratch_2 = create_arena(SCRATCH_SIZE);
-    init = false;
+    init = FALSE;
   }
 
   Arena scratch = scratch_1;
