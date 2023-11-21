@@ -27,7 +27,6 @@ SOFTWARE.
 #ifndef ARENA_LIB_H
 #define ARENA_LIB_H
 
-#include <stdio.h>
 #include <stdlib.h>
 #include <stdint.h>
 #include <assert.h>
