@@ -31,30 +31,11 @@ SOFTWARE.
 #include <stdint.h>
 #include <assert.h>
 
-#ifndef TRUE
-#define TRUE 1
-#endif
-
-#ifndef FALSE
-#define FALSE 0
-#endif
-
-#ifndef NULL
-#define NULL ((void *) 0)
-#endif
-
-typedef uint8_t aa_bool;
-
-typedef struct Arena Arena;
-
 #define KiB(bytes) ((size_t) bytes << 10)
 #define MiB(bytes) ((size_t) bytes << 20)
 #define GiB(bytes) ((size_t) bytes << 30)
 
-#ifndef SCRATCH_SIZE
-#define SCRATCH_SIZE MiB(16)
-#endif
-
+typedef struct Arena Arena;
 struct Arena
 {
   char *memory;
@@ -64,17 +45,18 @@ struct Arena
 
 Arena create_arena(size_t size)
 {
-  Arena arena = {0};
+  Arena arena;
   arena.memory = malloc(size);
   arena.size = size;
+  arena.used = 0;
 
   return arena;
 }
 
 void destroy_arena(Arena *arena)
-{
+{ 
   free(arena->memory);
-  arena = NULL;
+  arena = (void *) 0;
 }
 
 void *arena_alloc(Arena *arena, size_t size)
@@ -97,33 +79,6 @@ void arena_free(Arena *arena, size_t size)
 void clear_arena(Arena *arena)
 {
   arena->used = 0;
-}
-
-Arena get_scratch_arena(Arena *conflict)
-{
-  static __thread Arena scratch_1;
-  static __thread Arena scratch_2;
-  static __thread aa_bool init = TRUE;
-
-  if (init)
-  {
-    scratch_1 = create_arena(SCRATCH_SIZE);
-    scratch_2 = create_arena(SCRATCH_SIZE);
-    init = FALSE;
-  }
-
-  Arena scratch = scratch_1;
-  
-  if (conflict == &scratch_1)
-  {
-    scratch = scratch_2;
-  }
-  else if (conflict == &scratch_2)
-  {
-    scratch = scratch_1;
-  }
-
-  return scratch;
 }
 
 #endif
