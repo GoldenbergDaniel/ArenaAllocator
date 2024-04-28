@@ -55,10 +55,7 @@ typedef struct Arena Arena;
 #define MiB(bytes) ((size_t) bytes << 20)
 #define GiB(bytes) ((size_t) bytes << 30)
 
-#ifndef SCRATCH_SIZE
-#define SCRATCH_SIZE MiB(16)
-#endif
-
+typedef struct Arena Arena;
 struct Arena
 {
   char *memory;
@@ -83,18 +80,19 @@ char *_arena_align_ptr(char *ptr, int32_t align, int32_t *offset)
 static inline
 Arena create_arena(size_t size)
 {
-  Arena arena = {0};
+  Arena arena;
   arena.memory = malloc(size);
   arena.size = size;
+  arena.used = 0;
 
   return arena;
 }
 
 static inline
 void destroy_arena(Arena *arena)
-{
+{ 
   free(arena->memory);
-  arena = NULL;
+  arena = (void *) 0;
 }
 
 static inline
@@ -121,43 +119,6 @@ static inline
 void clear_arena(Arena *arena)
 {
   arena->used = 0;
-}
-
-// WARNING: EXPERIMENTAL
-static inline
-Arena get_scratch_arena(Arena *conflict)
-{
-  #if defined(_MSC_VER)
-    __declspec(thread) static __thread Arena scratch_1;
-    __declspec(thread) static __thread Arena scratch_2;
-    __declspec(thread) static __thread aa_bool init = TRUE;
-  #elif defined(__clang__) || defined(__GNUC__)
-    static __thread Arena scratch_1;
-    static __thread Arena scratch_2;
-    static __thread aa_bool init = TRUE;
-  #else
-    #error "ERROR: Compiler not supported."
-  #endif
-
-  if (init)
-  {
-    scratch_1 = create_arena(SCRATCH_SIZE);
-    scratch_2 = create_arena(SCRATCH_SIZE);
-    init = FALSE;
-  }
-
-  Arena scratch = scratch_1;
-  
-  if (conflict == &scratch_1)
-  {
-    scratch = scratch_2;
-  }
-  else if (conflict == &scratch_2)
-  {
-    scratch = scratch_1;
-  }
-
-  return scratch;
 }
 
 #endif
