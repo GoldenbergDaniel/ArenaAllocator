@@ -43,6 +43,10 @@ SOFTWARE.
 #define NULL ((void *) 0)
 #endif
 
+#ifndef ARENA_ALIGN_SIZE
+#define ARENA_ALIGN_SIZE 8
+#endif
+
 typedef uint8_t aa_bool;
 
 typedef struct Arena Arena;
@@ -62,6 +66,21 @@ struct Arena
   size_t used;
 };
 
+static inline
+char *_arena_align_ptr(char *ptr, int32_t align, int32_t *offset)
+{
+	uintptr_t result = (uintptr_t) ptr;
+	int32_t modulo = result & ((uintptr_t) (align) - 1);
+	if (modulo != 0)
+  {
+    *offset = align - modulo;
+		result += *offset;
+	}
+
+	return (char *) result;
+}
+
+static inline
 Arena create_arena(size_t size)
 {
   Arena arena = {0};
@@ -71,39 +90,54 @@ Arena create_arena(size_t size)
   return arena;
 }
 
+static inline
 void destroy_arena(Arena *arena)
 {
   free(arena->memory);
   arena = NULL;
 }
 
+static inline
 void *arena_alloc(Arena *arena, size_t size)
 {
-  assert(arena->size >= arena->used + size);
+  assert(arena->size >= arena->used + size + ARENA_ALIGN_SIZE);
 
   char *allocated = arena->memory + arena->used;
-  arena->used += size;
+  int32_t offset;
+  allocated = _arena_align_ptr(allocated, ARENA_ALIGN_SIZE, &offset);
+  arena->used += size + offset;
   
   return allocated;
 }
 
+static inline
 void arena_free(Arena *arena, size_t size)
 {
   assert(arena->used - size >= 0);
-  
   arena->used -= size;
 }
 
+static inline
 void clear_arena(Arena *arena)
 {
   arena->used = 0;
 }
 
+// WARNING: EXPERIMENTAL
+static inline
 Arena get_scratch_arena(Arena *conflict)
 {
-  static __thread Arena scratch_1;
-  static __thread Arena scratch_2;
-  static __thread aa_bool init = TRUE;
+  #if defined(_MSC_VER)
+    __declspec(thread) static __thread Arena scratch_1;
+    __declspec(thread) static __thread Arena scratch_2;
+    __declspec(thread) static __thread aa_bool init = TRUE;
+  #elif defined(__clang__) || defined(__GNUC__)
+    static __thread Arena scratch_1;
+    static __thread Arena scratch_2;
+    static __thread aa_bool init = TRUE;
+  #else
+    #error "ERROR: Compiler not supported."
+  #endif
 
   if (init)
   {
