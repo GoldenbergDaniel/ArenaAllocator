@@ -101,7 +101,7 @@ void *arena_alloc(Arena *arena, size_t size)
   assert(arena->size >= arena->used + size + ARENA_ALIGN_SIZE);
 
   char *allocated = arena->memory + arena->used;
-  int32_t offset;
+  int32_t offset = 0;
   allocated = _arena_align_ptr(allocated, ARENA_ALIGN_SIZE, &offset);
   arena->used += size + offset;
   
