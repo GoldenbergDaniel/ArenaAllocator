@@ -1,11 +1,11 @@
 # ArenaAllocator
-Very basic Arena Allocator implementation in C, inspired by Ryan Fleury's article. Please use arenas instead of malloc and free, thanks.
-For more info on arenas and their benefits, see www.rfleury.com/p/untangling-lifetimes-the-arena-allocator
+Basic arena allocator implementation in C, inspired by Ryan Fleury's article. Please use arenas instead of malloc and free, it makes manual memory management virtually trivial.
+
+For more info on arenas, see www.rfleury.com/p/untangling-lifetimes-the-arena-allocator
 
 # Usage example
 ```c
-#include <stdio.h>
-#include "arena.h"
+#include "arena_lib.h"
 
 typedef struct Entity Entity;
 struct Entity
@@ -17,22 +17,32 @@ struct Entity
 
 int main(void)
 {
-  // Create arena with 1 kilobyte of memory
-  Arena arena = create_arena(KiB(1));
+  // - Create arena with 16 MiB of reserved virtual memory ---
+  Arena arena = arena_create(MiB(16));
 
-  Entity *player = {0};
-  Entity *enemy1 = {0};
-  Entity *enemy2 = {0};
+  // - Scope 1 ---
+  {
+    // - Allocate memory for the entities ---
+    Entity *player = arena_push(Entity, 1, &arena);
+    Entity *enemies = arena_push(Entity, 64, &arena);
 
-  // Allocate memory
-  player = arena_alloc(&arena, sizeof (Entity)); 
-  enemy1 = arena_alloc(&arena, sizeof (Entity));
-  enemy2 = arena_alloc(&arena, sizeof (Entity));
+    // - Use the data ---
+    // ...
 
-  // Use the data...
+    // - Reset arena's memory ---
+    arena_clear(&arena);
+  }
 
-  // Free entire memory block
-  clear_arena(&arena);
+  // - Scope 2 ---
+  {
+    Entity *player = arena_push(Entity, 1, &arena);
+    Entity *enemy = arena_push(Entity, 1, &arena);
+
+    // - Use the data ---
+    // ...
+
+    arena_clear(&arena);
+  }
   
   return 0;
 }
