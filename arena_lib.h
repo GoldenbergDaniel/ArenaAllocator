@@ -1,124 +1,276 @@
-/*
-MIT License
-
-Copyright (c) 2023 Daniel Goldenberg
-
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
-
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
-*/
-
 #pragma once
 
 #ifndef ARENA_LIB_H
 #define ARENA_LIB_H
 
-#include <stdlib.h>
 #include <stdint.h>
 #include <assert.h>
 
-#ifndef TRUE
-#define TRUE 1
+#if defined(_WIN32)
+#define PLATFORM_WINDOWS
+#elif defined (__linux__) || defined(__APPLE__)
+#define PLATFORM_POSIX
 #endif
 
-#ifndef FALSE
-#define FALSE 0
+#if defined(__GNUC__)
+#define COMPILER_CLANG
+#elif defined(_MSC_VER)
+#define COMPILER_MSVC
 #endif
 
-#ifndef NULL
-#define NULL ((void *) 0)
+#if defined(PLATFORM_WINDOWS)
+#define WIN32_LEAN_AND_MEAN
+#include <windows.h>
+#elif defined(PLATFORM_POSIX)
+#include <unistd.h>
+#include <sys/mman.h>
 #endif
 
-#ifndef ARENA_ALIGN_SIZE
-#define ARENA_ALIGN_SIZE 8
+#if defined(COMPILER_CLANG)
+#define thread_local __thread
+#define read_only __attribute__((section(_RO_SECTION_NAME)))
+#elif defined(COMPILER_MSVC)
+#define thread_local __declspec(thread)
 #endif
 
-typedef uint8_t aa_bool;
+// OS ////////////////////////////////////////////////////////////////////////////////////
 
-typedef struct Arena Arena;
+void *_arena_os_reserve_vm(void *addr, uint64_t size)
+{
+  void *result = NULL;
+  
+#ifdef PLATFORM_WINDOWS
+  result = VirtualAlloc(addr, size, MEM_RESERVE, PAGE_NOACCESS);
+#endif
 
-#define KiB(bytes) ((size_t) bytes << 10)
-#define MiB(bytes) ((size_t) bytes << 20)
-#define GiB(bytes) ((size_t) bytes << 30)
+#ifdef PLATFORM_POSIX
+  result = mmap(NULL, size, PROT_NONE, MAP_ANON | MAP_PRIVATE, -1, 0);
+#endif
+
+  return result;
+}
+
+uint8_t _arena_os_commit_vm(void *addr, uint64_t size)
+{
+  uint8_t result = 1;
+
+#ifdef PLATFORM_WINDOWS
+  byte *ptr = VirtualAlloc(addr, size, MEM_COMMIT, PAGE_READWRITE);
+  if (ptr == NULL)
+  {
+    result = GetLastError();
+  }
+#endif
+
+#ifdef PLATFORM_POSIX
+  int32_t err = mprotect(addr, size, PROT_READ | PROT_WRITE);
+#endif
+
+  return result;
+}
+
+int8_t _arena_os_decommit_vm(void *addr, uint64_t size)
+{
+  int8_t result = 1;
+
+#ifdef PLATFORM_WINDOWS
+  result = VirtualFree(addr, size, MEM_DECOMMIT);
+#endif
+
+#ifdef PLATFORM_POSIX
+  int32_t err = mprotect(addr, size, PROT_NONE);
+#endif
+
+  return result;
+}
+
+void _arena_os_release_vm(void *ptr, uint64_t size)
+{
+#ifdef PLATFORM_WINDOWS
+  VirtualFree(ptr, size, MEM_RELEASE);
+#endif
+
+#ifdef PLATFORM_POSIX
+  munmap(ptr, size);
+#endif
+}
+
+// TODO(dg): This should be cached somewhere
+uint64_t _arena_os_get_page_size(void)
+{
+  uint64_t result = 0;
+
+#ifdef PLATFORM_WINDOWS
+  SYSTEM_INFO info = {0};
+  GetSystemInfo(&info);
+  result = info.dwPageSize;
+#endif
+
+#ifdef PLATFORM_POSIX
+  result = getpagesize();
+#endif
+
+  return result;
+}
+
+// @Arena ////////////////////////////////////////////////////////////////////////////////
+
+#define PAGES_PER_COMMIT 2
+
+#ifndef SCRATCH_SIZE
+// 8 GiB
+#define SCRATCH_SIZE ((uint64_t) 8 << 30)
+#endif
 
 typedef struct Arena Arena;
 struct Arena
 {
+  uint64_t size;
   char *memory;
-  size_t size;
-  size_t used;
+  char *allocated;
+  char *committed;
+  uint8_t decommit_on_clear;
 };
 
-static inline
-char *_arena_align_ptr(char *ptr, int32_t align, int32_t *offset)
+// NOTE(dg): NOT YET IMPLEMENTED
+// typedef struct Arena_Temp Arena_Temp;
+// struct Arena_Temp
+// {
+//   Arena *arena;
+//   uint64_t used;
+// };
+
+#define arena_push(T, count, arena) (T *) _arena_push(arena, size_of(T) * count, align_of(T))
+
+thread_local Arena _scratch_1;
+thread_local Arena _scratch_2;
+
+char *_align_ptr(char *ptr, uint32_t align)
 {
-	uintptr_t result = (uintptr_t) ptr;
-	int32_t modulo = result & ((uintptr_t) (align) - 1);
-	if (modulo != 0)
+	uint64_t result = (uint64_t) ptr;
+  uint64_t remainder = result % align;
+  if (remainder != 0)
   {
-    *offset = align - modulo;
-		result += *offset;
-	}
+    result += align - remainder;
+  }
 
 	return (char *) result;
 }
 
-static inline
-Arena create_arena(size_t size)
+Arena arena_create(uint64_t size, uint8_t decommit_on_clear)
 {
   Arena arena;
-  arena.memory = malloc(size);
+  arena.memory = _arena_os_reserve_vm(NULL, size);;
+  arena.allocated = arena.memory;
+  arena.committed = arena.memory;
   arena.size = size;
-  arena.used = 0;
+  arena.decommit_on_clear = decommit_on_clear;
 
   return arena;
 }
 
-static inline
-void destroy_arena(Arena *arena)
-{ 
-  free(arena->memory);
-  arena = (void *) 0;
+void arena_destroy(Arena *arena)
+{
+  _arena_os_release_vm(arena->memory, 0);
+  arena->memory = NULL;
+  arena->allocated = NULL;
+  arena->size = 0;
 }
 
-static inline
-void *arena_alloc(Arena *arena, size_t size)
+char *_arena_push(Arena *arena, uint64_t size, uint64_t align)
 {
-  assert(arena->size >= arena->used + size + ARENA_ALIGN_SIZE);
+  char *ptr = _align_ptr(arena->allocated, align);
+  arena->allocated = ptr + size;
 
-  char *allocated = arena->memory + arena->used;
-  int32_t offset = 0;
-  allocated = _arena_align_ptr(allocated, ARENA_ALIGN_SIZE, &offset);
-  arena->used += size + offset;
+  if (arena->committed < arena->allocated)
+  {
+    uint64_t granularity = _arena_os_get_page_size() * PAGES_PER_COMMIT;
+    uint64_t size_to_commit = (uint64_t) (arena->allocated - arena->committed);
+    size_to_commit += -size_to_commit & (granularity - 1);
+
+    uint8_t commit_ok = _arena_os_commit_vm(arena->committed, size_to_commit);
+    assert(commit_ok);
+
+    arena->committed += size_to_commit;
+  }
   
-  return allocated;
+  return ptr;
 }
 
-static inline
-void arena_free(Arena *arena, size_t size)
+void arena_pop(Arena *arena, uint64_t size)
 {
-  assert(arena->used - size >= 0);
-  arena->used -= size;
+  arena->allocated -= size;
+  
+  uint64_t start_idx = (uint64_t) (arena->allocated - arena->memory) - 1;
+  uint64_t end_idx = start_idx + size;
+  for (uint64_t i = start_idx; i < end_idx; i++)
+  {
+    arena->allocated[i] = 0;
+  }
 }
 
-static inline
-void clear_arena(Arena *arena)
+void arena_clear(Arena *arena)
 {
-  arena->used = 0;
+  for (uint64_t i = 0; i < arena->allocated - arena->memory; i++)
+  {
+    arena->memory[i] = 0;
+  }
+
+  if (arena->decommit_on_clear)
+  {
+    uint64_t commit_size = arena->committed - arena->memory;
+    uint64_t page_size = _arena_os_get_page_size();
+
+    // If committed pages > 16, decommit pages after 16th
+    uint64_t page_limit = page_size * 16;
+    if (commit_size > page_limit)
+    {
+      char *start_addr = arena->memory + page_limit;
+      _arena_os_decommit_vm(start_addr, commit_size - page_limit);
+      arena->committed = start_addr;
+    }
+  }
+
+  arena->allocated = arena->memory;
 }
+
+void arena_init_scratches(void)
+{
+  _scratch_1 = arena_create(SCRATCH_SIZE, 1);
+  _scratch_2 = arena_create(SCRATCH_SIZE, 1);
+}
+
+Arena *arena_get_scratch(Arena *conflict)
+{
+  Arena *result = &_scratch_1;
+  
+  if (conflict != NULL)
+  {
+    if (conflict->memory == _scratch_1.memory)
+    {
+      result = &_scratch_2;
+    }
+    else if (conflict->memory == _scratch_2.memory)
+    {
+      result = &_scratch_1;
+    }
+  }
+
+  return result;
+}
+
+// NOTE(dg): NOT YET IMPLEMENTED
+// Arena_Temp arena_begin_scratch(Arena *conflict)
+// {
+//   Arena_Temp result;
+//   result.arena = _arena_get_scratch(conflict);
+//   result.used = 0;
+//   return result;
+// }
+
+// void arena_end_scratch(Arena_Temp scratch)
+// {
+//   arena_pop(scratch.arena, scratch.used);
+// }
 
 #endif
